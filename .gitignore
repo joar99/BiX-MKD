@@ -1,0 +1,37 @@
+# ══════════════════════════════════════════════════════════════════════
+# PATIENT DATA — MIMIC-III / eICU are PhysioNet *credentialed* data.
+# Nothing under these paths may ever reach a remote. Regenerate from
+# PhysioNet via forpublication/preprocessing/ instead.
+# ══════════════════════════════════════════════════════════════════════
+forpublication/db/mimic_data/
+forpublication/db/e-icu-data/
+physionet.org/
+*.parquet
+
+# ── Trained weights + anything derived from patient data ──────────────
+# best_model.pt files are fine-tuned on clinical notes (derived data), and
+# test_predictions.csv / val_predictions.csv carry per-admission rows keyed
+# by hadm_id / patientunitstayid. Keep all of it off the remote.
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+test_predictions.csv
+val_predictions.csv
+
+# ── Environment ───────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# ── Editor / OS ───────────────────────────────────────────────────────
+.idea/
+.vscode/
+.DS_Store
+
+# ── Local agent state ─────────────────────────────────────────────────
+.claude/

@@ -1,0 +1,505 @@
+// ===================================================================
+// eICU Collaborative Research Database v2.0 — schema
+// Generated from the actual .csv.gz headers (types inferred from data).
+// Paste into https://dbdiagram.io to render.
+//
+// HUB: `patient` — one row per ICU stay (patientunitstayid).
+//   uniquepid ................ same human across stays
+//   patienthealthsystemstayid  same hospital admission (may span stays)
+//   hospitalid ............... the institution (208 of them)
+//   hospitaldischargestatus .. Alive / Expired  <- MORTALITY LABEL
+// ===================================================================
+
+Table admissionDrug {
+  admissiondrugid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  drugoffset int
+  drugenteredoffset int
+  drugnotetype varchar
+  specialtytype varchar
+  usertype varchar
+  rxincluded boolean
+  writtenineicu boolean
+  drugname varchar
+  drugdosage float
+  drugunit varchar
+  drugadmitfrequency varchar
+  drughiclseqno int
+}
+
+Table admissionDx {
+  admissiondxid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  admitdxenteredoffset int
+  admitdxpath varchar
+  admitdxname varchar
+  admitdxtext varchar
+  Note: 'TEXT TEACHER'
+}
+
+Table allergy {
+  allergyid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  allergyoffset int
+  allergyenteredoffset int
+  allergynotetype varchar
+  specialtytype varchar
+  usertype varchar
+  rxincluded boolean
+  writtenineicu boolean
+  drugname varchar
+  allergytype varchar
+  allergyname varchar
+  drughiclseqno int
+}
+
+Table apacheApsVar {
+  apacheapsvarid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  intubated int
+  vent int
+  dialysis int
+  eyes int
+  motor int
+  verbal int
+  meds int
+  urine int
+  wbc float
+  temperature float
+  respiratoryrate int
+  sodium int
+  heartrate int
+  meanbp int
+  ph float
+  hematocrit float
+  creatinine float
+  albumin float
+  pao2 int
+  pco2 int
+  bun int
+  glucose int
+  bilirubin float
+  fio2 int
+}
+
+Table apachePatientResult {
+  apachepatientresultsid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  physicianspeciality varchar
+  physicianinterventioncategory varchar
+  acutephysiologyscore int
+  apachescore int
+  apacheversion varchar
+  predictedicumortality varchar
+  actualicumortality varchar
+  predictediculos float
+  actualiculos float
+  predictedhospitalmortality varchar
+  actualhospitalmortality varchar
+  predictedhospitallos float
+  actualhospitallos float
+  preopmi int
+  preopcardiaccath int
+  ptcawithin24h int
+  unabridgedunitlos float
+  unabridgedhosplos float
+  actualventdays int
+  predventdays float
+  unabridgedactualventdays int
+}
+
+Table apachePredVar {
+  apachepredvarid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  sicuday int
+  saps3day1 int
+  saps3today int
+  saps3yesterday int
+  gender int
+  teachtype int
+  region int
+  bedcount int
+  admitsource int
+  graftcount int
+  meds int
+  verbal int
+  motor int
+  eyes int
+  age int
+  admitdiagnosis varchar
+  thrombolytics int
+  diedinhospital int
+  aids int
+  hepaticfailure int
+  lymphoma int
+  metastaticcancer int
+  leukemia int
+  immunosuppression int
+  cirrhosis int
+  electivesurgery int
+  activetx int
+  readmit int
+  ima int
+  midur int
+  ventday1 int
+  oobventday1 int
+  oobintubday1 int
+  diabetes int
+  managementsystem int
+  var03hspxlos int
+  pao2 int
+  fio2 int
+  ejectfx int
+  creatinine float
+  dischargelocation int
+  visitnumber int
+  amilocation int
+  day1meds int
+  day1verbal int
+  day1motor int
+  day1eyes int
+  day1pao2 int
+  day1fio2 int
+}
+
+Table carePlanCareProvider {
+  cplcareprovderid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  careprovidersaveoffset int
+  providertype varchar
+  specialty varchar
+  interventioncategory varchar
+  managingphysician varchar
+  activeupondischarge boolean
+}
+
+Table carePlanEOL {
+  cpleolid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  cpleolsaveoffset int
+  cpleoldiscussionoffset int
+  activeupondischarge boolean
+}
+
+Table carePlanGeneral {
+  cplgeneralid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  activeupondischarge boolean
+  cplitemoffset int
+  cplgroup varchar
+  cplitemvalue varchar
+}
+
+Table carePlanGoal {
+  cplgoalid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  cplgoaloffset int
+  cplgoalcategory varchar
+  cplgoalvalue varchar
+  cplgoalstatus varchar
+  activeupondischarge boolean
+}
+
+Table carePlanInfectiousDisease {
+  cplinfectid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  activeupondischarge boolean
+  cplinfectdiseaseoffset int
+  infectdiseasesite varchar
+  infectdiseaseassessment varchar
+  responsetotherapy varchar
+  treatment varchar
+}
+
+Table customLab {
+  customlabid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  labotheroffset int
+  labothertypeid int
+  labothername varchar
+  labotherresult float
+  labothervaluetext varchar
+}
+
+Table diagnosis {
+  diagnosisid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  activeupondischarge boolean
+  diagnosisoffset int
+  diagnosisstring varchar
+  icd9code varchar
+  diagnosispriority varchar
+  Note: 'TEXT TEACHER'
+}
+
+Table hospital {
+  hospitalid int [pk]
+  numbedscategory varchar
+  teachingstatus varchar
+  region varchar
+}
+
+Table infusionDrug {
+  infusiondrugid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  infusionoffset int
+  drugname varchar
+  drugrate float
+  infusionrate float
+  drugamount int
+  volumeoffluid int
+  patientweight float
+}
+
+Table intakeOutput {
+  intakeoutputid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  intakeoutputoffset int
+  intaketotal float
+  outputtotal float
+  dialysistotal float
+  nettotal float
+  intakeoutputentryoffset int
+  cellpath varchar
+  celllabel varchar
+  cellvaluenumeric float
+  cellvaluetext float
+}
+
+Table lab {
+  labid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  labresultoffset int
+  labtypeid int
+  labname varchar
+  labresult float
+  labresulttext varchar
+  labmeasurenamesystem varchar
+  labmeasurenameinterface varchar
+  labresultrevisedoffset int
+}
+
+Table medication {
+  medicationid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  drugorderoffset int
+  drugstartoffset int
+  drugivadmixture varchar
+  drugordercancelled varchar
+  drugname varchar
+  drughiclseqno int
+  dosage varchar
+  routeadmin varchar
+  frequency varchar
+  loadingdose varchar
+  prn varchar
+  drugstopoffset int
+  gtc int
+}
+
+Table microLab {
+  microlabid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  culturetakenoffset int
+  culturesite varchar
+  organism varchar
+  antibiotic varchar
+  sensitivitylevel varchar
+}
+
+Table note {
+  noteid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  noteoffset int
+  noteenteredoffset int
+  notetype varchar
+  notepath varchar
+  notevalue varchar
+  notetext varchar
+  Note: 'TEXT TEACHER'
+}
+
+Table nurseAssessment {
+  nurseassessid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  nurseassessoffset int
+  nurseassessentryoffset int
+  cellattributepath varchar
+  celllabel varchar
+  cellattribute varchar
+  cellattributevalue varchar
+}
+
+Table nurseCare {
+  nursecareid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  celllabel varchar
+  nursecareoffset int
+  nursecareentryoffset int
+  cellattributepath varchar
+  cellattribute varchar
+  cellattributevalue varchar
+}
+
+Table nurseCharting {
+  nursingchartid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  nursingchartoffset int
+  nursingchartentryoffset int
+  nursingchartcelltypecat varchar
+  nursingchartcelltypevallabel varchar
+  nursingchartcelltypevalname varchar
+  nursingchartvalue varchar
+  Note: 'WAVEFORM TEACHER'
+}
+
+Table pastHistory {
+  pasthistoryid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  pasthistoryoffset int
+  pasthistoryenteredoffset int
+  pasthistorynotetype varchar
+  pasthistorypath varchar
+  pasthistoryvalue varchar
+  pasthistoryvaluetext varchar
+  Note: 'TEXT TEACHER'
+}
+
+Table patient {
+  patientunitstayid int [pk]
+  patienthealthsystemstayid int
+  gender varchar
+  age varchar
+  ethnicity varchar
+  hospitalid int
+  wardid int
+  apacheadmissiondx varchar
+  admissionheight float
+  hospitaladmittime24 varchar
+  hospitaladmitoffset int
+  hospitaladmitsource varchar
+  hospitaldischargeyear int
+  hospitaldischargetime24 varchar
+  hospitaldischargeoffset int
+  hospitaldischargelocation varchar
+  hospitaldischargestatus varchar
+  unittype varchar
+  unitadmittime24 varchar
+  unitadmitsource varchar
+  unitvisitnumber int
+  unitstaytype varchar
+  admissionweight float
+  dischargeweight float
+  unitdischargetime24 varchar
+  unitdischargeoffset int
+  unitdischargelocation varchar
+  unitdischargestatus varchar
+  uniquepid varchar
+  Note: 'TEXT TEACHER'
+}
+
+Table physicalExam {
+  physicalexamid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  physicalexamoffset int
+  physicalexampath varchar
+  physicalexamvalue varchar
+  physicalexamtext varchar
+}
+
+Table respiratoryCare {
+  respcareid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  respcarestatusoffset int
+  currenthistoryseqnum int
+  airwaytype varchar
+  airwaysize varchar
+  airwayposition varchar
+  cuffpressure varchar
+  ventstartoffset int
+  ventendoffset int
+  priorventstartoffset int
+  priorventendoffset int
+  apneaparms varchar
+  lowexhmvlimit varchar
+  hiexhmvlimit varchar
+  lowexhtvlimit varchar
+  hipeakpreslimit varchar
+  lowpeakpreslimit varchar
+  hirespratelimit varchar
+  lowrespratelimit varchar
+  sighpreslimit varchar
+  lowironoxlimit varchar
+  highironoxlimit varchar
+  meanairwaypreslimit varchar
+  peeplimit varchar
+  cpaplimit varchar
+  setapneainterval varchar
+  setapneatv varchar
+  setapneaippeephigh varchar
+  setapnearr varchar
+  setapneapeakflow varchar
+  setapneainsptime varchar
+  setapneaie varchar
+  setapneafio2 varchar
+}
+
+Table respiratoryCharting {
+  respchartid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  respchartoffset int
+  respchartentryoffset int
+  respcharttypecat varchar
+  respchartvaluelabel varchar
+  respchartvalue varchar
+}
+
+Table treatment {
+  treatmentid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  treatmentoffset int
+  treatmentstring varchar
+  activeupondischarge boolean
+}
+
+Table vitalAperiodic {
+  vitalaperiodicid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  observationoffset int
+  noninvasivesystolic int
+  noninvasivediastolic int
+  noninvasivemean int
+  paop varchar
+  cardiacoutput varchar
+  cardiacinput varchar
+  svr varchar
+  svri varchar
+  pvr varchar
+  pvri varchar
+  Note: 'WAVEFORM TEACHER'
+}
+
+Table vitalPeriodic {
+  vitalperiodicid int [pk]
+  patientunitstayid int [ref: > patient.patientunitstayid]
+  observationoffset int
+  temperature varchar
+  sao2 int
+  heartrate int
+  respiration varchar
+  cvp int
+  etco2 varchar
+  systemicsystolic int
+  systemicdiastolic int
+  systemicmean int
+  pasystolic varchar
+  padiastolic varchar
+  pamean varchar
+  st1 varchar
+  st2 varchar
+  st3 varchar
+  icp varchar
+  Note: 'WAVEFORM TEACHER'
+}
+
+Ref: patient.hospitalid > hospital.hospitalid
