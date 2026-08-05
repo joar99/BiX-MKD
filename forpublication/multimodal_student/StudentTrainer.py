@@ -144,6 +144,12 @@ class DistillationTrainer:
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
         self.device = device
+        # Mixed precision: fp16 matmuls on CUDA tensor cores, fp32 master
+        # weights. No-op on mps/cpu. autocast keeps softmax/log_softmax/KLDiv
+        # in fp32 by policy, so the temperature-scaled KD losses below are
+        # computed at full precision even when enabled.
+        self.amp_enabled = str(device) == "cuda"
+        self.scaler = torch.amp.GradScaler("cuda", enabled=self.amp_enabled)
 
         # Move models to device
         self.student.to(self.device)
@@ -345,55 +351,60 @@ class DistillationTrainer:
 
             self.optimizer.zero_grad()
 
-            # ── Student forward pass ─────────────────────────────────
-            student_logits = self.student(
-                input_ids, attention_mask, waveform_features
-            )
+            with torch.amp.autocast("cuda", enabled=self.amp_enabled):
+                # ── Student forward pass ─────────────────────────────────
+                student_logits = self.student(
+                    input_ids, attention_mask, waveform_features
+                )
 
-            # ── Supervised loss ──────────────────────────────────────
-            loss_sup = self.criterion_sup(student_logits, labels)
+                # ── Supervised loss ──────────────────────────────────────
+                loss_sup = self.criterion_sup(student_logits, labels)
 
-            # ── Distillation losses ──────────────────────────────────
-            if self.alpha > 0:
-                with torch.no_grad():
-                    # Text teacher sees only the text
-                    text_teacher_logits = self.text_teacher(
-                        input_ids, attention_mask
+                # ── Distillation losses ──────────────────────────────────
+                if self.alpha > 0:
+                    with torch.no_grad():
+                        # Text teacher sees only the text
+                        text_teacher_logits = self.text_teacher(
+                            input_ids, attention_mask
+                        )
+                        # Waveform teacher sees only the waveform features
+                        waveform_teacher_logits = self.waveform_teacher(
+                            waveform_features
+                        )
+
+                    # Pre-scale teacher logits with calibrated temperatures
+                    # This corrects teacher miscalibration before softening
+                    if self.text_teacher_T is not None:
+                        text_teacher_logits = text_teacher_logits / self.text_teacher_T
+                    if self.waveform_teacher_T is not None:
+                        waveform_teacher_logits = waveform_teacher_logits / self.waveform_teacher_T
+
+                    loss_kd_text = self._compute_kd_loss(
+                        student_logits, text_teacher_logits
                     )
-                    # Waveform teacher sees only the waveform features
-                    waveform_teacher_logits = self.waveform_teacher(
-                        waveform_features
+                    loss_kd_wave = self._compute_kd_loss(
+                        student_logits, waveform_teacher_logits
                     )
 
-                # Pre-scale teacher logits with calibrated temperatures
-                # This corrects teacher miscalibration before softening
-                if self.text_teacher_T is not None:
-                    text_teacher_logits = text_teacher_logits / self.text_teacher_T
-                if self.waveform_teacher_T is not None:
-                    waveform_teacher_logits = waveform_teacher_logits / self.waveform_teacher_T
+                    # Weight the teachers based on provided weights
+                    loss_kd_combined = (
+                            self.text_kd_weight * loss_kd_text +
+                            self.waveform_kd_weight * loss_kd_wave
+                    )
 
-                loss_kd_text = self._compute_kd_loss(
-                    student_logits, text_teacher_logits
-                )
-                loss_kd_wave = self._compute_kd_loss(
-                    student_logits, waveform_teacher_logits
-                )
+                    # Combined objective: Section 3.3.3
+                    loss = (1 - self.alpha) * loss_sup + self.alpha * loss_kd_combined
+                else:
+                    # Pure supervised (alpha=0), the multimodal baseline
+                    loss_kd_text = torch.tensor(0.0)
+                    loss_kd_wave = torch.tensor(0.0)
+                    loss = loss_sup
 
-                # Weight the teachers based on provided weights
-                loss_kd_combined = (
-                        self.text_kd_weight * loss_kd_text +
-                        self.waveform_kd_weight * loss_kd_wave
-                )
-
-                # Combined objective: Section 3.3.3
-                loss = (1 - self.alpha) * loss_sup + self.alpha * loss_kd_combined
-            else:
-                # Pure supervised (alpha=0), the multimodal baseline
-                loss_kd_text = torch.tensor(0.0)
-                loss_kd_wave = torch.tensor(0.0)
-                loss = loss_sup
-
-            loss.backward()
+            self.scaler.scale(loss).backward()
+            # Unscale here so the per-group grad norms below are TRUE gradient
+            # magnitudes, not the scaler's inflated ones — keeps the diagnostic
+            # comparable to the fp32 runs.
+            self.scaler.unscale_(self.optimizer)
 
             # Per-group grad norms *before* clipping and *before* optimizer
             # step, so we see the raw gradient signal. clip_grad_norm_ will
@@ -407,7 +418,8 @@ class DistillationTrainer:
                 self.student.parameters(), max_norm=1.0
             )
 
-            self.optimizer.step()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
             self.scheduler.step()
 
             total_loss += loss.item()
