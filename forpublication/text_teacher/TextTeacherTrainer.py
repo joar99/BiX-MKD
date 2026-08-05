@@ -83,6 +83,11 @@ class TextTeacherTrainer:
             print("⚠ soft_logits provided but alpha=0 — KD branch will be skipped")
 
         self.device = device
+        # Mixed precision: fp16 matmuls on CUDA tensor cores, fp32 master
+        # weights. No-op on mps/cpu — autocast and the scaler both disable
+        # cleanly, so those runs stay bit-for-bit plain fp32.
+        self.amp_enabled = str(device) == "cuda"
+        self.scaler = torch.amp.GradScaler("cuda", enabled=self.amp_enabled)
         self.model.to(device)
 
         if class_weights is not None:
@@ -149,21 +154,26 @@ class TextTeacherTrainer:
             labels = batch["label"].to(self.device)
 
             self.optimizer.zero_grad()
-            logits   = self._forward(batch)
-            loss_sup = self.criterion_sup(logits, labels)
+            with torch.amp.autocast("cuda", enabled=self.amp_enabled):
+                logits   = self._forward(batch)
+                loss_sup = self.criterion_sup(logits, labels)
 
-            if self.soft_logits is not None and self.alpha > 0:
-                soft = self._gather_soft(batch["hadm_id"])
-                loss_kd = self._kd_loss(logits, soft)
-                loss    = (1 - self.alpha) * loss_sup + self.alpha * loss_kd
-            else:
-                loss_kd = torch.tensor(0.0)
-                loss    = loss_sup
+                if self.soft_logits is not None and self.alpha > 0:
+                    soft = self._gather_soft(batch["hadm_id"])
+                    loss_kd = self._kd_loss(logits, soft)
+                    loss    = (1 - self.alpha) * loss_sup + self.alpha * loss_kd
+                else:
+                    loss_kd = torch.tensor(0.0)
+                    loss    = loss_sup
 
-            loss.backward()
+            self.scaler.scale(loss).backward()
+            # Unscale before clipping: clip_grad_norm_ must see true gradient
+            # magnitudes, not the scaler's inflated ones.
+            self.scaler.unscale_(self.optimizer)
             torch.nn.utils.clip_grad_norm_(self.model.parameters(),
                                            max_norm=self.grad_clip_max_norm)
-            self.optimizer.step()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
             self.scheduler.step()   # per-batch (warmup)
 
             tot_loss += loss.item()

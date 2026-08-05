@@ -21,7 +21,37 @@ Layout:
 # ═══════════════════════════════════════════════════════════════════════════
 # GLOBAL
 # ═══════════════════════════════════════════════════════════════════════════
-DEVICE               = "mps"        # ← switch to "cuda" on the gaming PC / cloud
+def _select_device() -> str:
+    """
+    Pick the training device: cuda → mps → cpu.
+
+    Auto-detected rather than hand-set so the same checkout runs on the M3 Max
+    (mps) and the gaming PC (cuda) with no edit — an un-flipped constant is a
+    silent 10x slowdown, which is exactly the failure mode this repo avoids.
+    CPU is a real fallback (analysis scripts import this module on machines with
+    no accelerator) but it is never silent: training on it would take weeks.
+    """
+    import torch
+
+    if torch.cuda.is_available():
+        return "cuda"
+    if torch.backends.mps.is_available():
+        return "mps"
+
+    print("!" * 72)
+    print("WARNING: no CUDA or MPS device found — falling back to CPU.")
+    print("Training will be orders of magnitude slower. Stop now unless this")
+    print("is a data/analysis script rather than a training run.")
+    print("!" * 72)
+    return "cpu"
+
+
+DEVICE               = _select_device()
+
+# fp16 mixed precision (torch.autocast + GradScaler) is CUDA-only: MPS has no
+# GradScaler and no tensor cores to exploit. The trainers read this and fall
+# back to plain fp32 everywhere else, so results on mps are unchanged.
+AMP_ENABLED          = DEVICE == "cuda"
 NUM_CLASSES          = 2
 MAX_LENGTH           = 512          # BERT token cap
 WAVEFORM_FEATURE_DIM = 317

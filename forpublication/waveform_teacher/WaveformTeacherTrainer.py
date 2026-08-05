@@ -80,6 +80,11 @@ class WaveformTeacherTrainer:
 
         self.device = device
         self.model.to(device)
+        # Mixed precision: no-op off CUDA. This MLP is small enough that AMP
+        # buys little here — it is enabled for consistency with the other two
+        # trainers, so every model in a run uses the same numerics.
+        self.amp_enabled = str(device) == "cuda"
+        self.scaler = torch.amp.GradScaler("cuda", enabled=self.amp_enabled)
 
         if class_weights is not None:
             class_weights = class_weights.to(device)
@@ -140,21 +145,26 @@ class WaveformTeacherTrainer:
             labels = batch["label"].to(self.device)
 
             self.optimizer.zero_grad()
-            logits   = self._forward(batch)
-            loss_sup = self.criterion_sup(logits, labels)
+            with torch.amp.autocast("cuda", enabled=self.amp_enabled):
+                logits   = self._forward(batch)
+                loss_sup = self.criterion_sup(logits, labels)
 
-            if self.soft_logits is not None and self.alpha > 0:
-                soft = self._gather_soft(batch["hadm_id"])
-                loss_kd = self._kd_loss(logits, soft)
-                loss    = (1 - self.alpha) * loss_sup + self.alpha * loss_kd
-            else:
-                loss_kd = torch.tensor(0.0)
-                loss    = loss_sup
+                if self.soft_logits is not None and self.alpha > 0:
+                    soft = self._gather_soft(batch["hadm_id"])
+                    loss_kd = self._kd_loss(logits, soft)
+                    loss    = (1 - self.alpha) * loss_sup + self.alpha * loss_kd
+                else:
+                    loss_kd = torch.tensor(0.0)
+                    loss    = loss_sup
 
-            loss.backward()
+            self.scaler.scale(loss).backward()
+            # Unscale before clipping: clip_grad_norm_ must see true gradient
+            # magnitudes, not the scaler's inflated ones.
+            self.scaler.unscale_(self.optimizer)
             torch.nn.utils.clip_grad_norm_(self.model.parameters(),
                                            max_norm=self.grad_clip_max_norm)
-            self.optimizer.step()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
 
             tot_loss += loss.item()
             tot_sup  += loss_sup.item()
